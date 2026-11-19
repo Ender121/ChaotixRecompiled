@@ -1,0 +1,104 @@
+name: Android APK
+
+# Builds the Android APK (arm64-v8a and armeabi-v7a, minSdk 21).
+#
+# The ROM is never part of the upstream repo. Give it to this workflow in
+# ONE of two ways:
+#   1. Commit it in your (private!) fork: a `*.32x` file, or a `.zip` holding
+#      one, in the repository root or in `rom/`.
+#   2. Or add a repository secret CHAOTIX_ROM_URL with a direct download link
+#      to the ROM (or to a zip with it); the secret keeps the link private.
+# Do not make a fork public if it holds the ROM or the generated code, and do
+# not distribute the APK: it contains code translated from the game.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths: ["src/**", "tools/**", "cmake/**", "CMakeLists.txt", "platforms/android/**", "coverage/**", ".github/workflows/android.yml"]
+
+jobs:
+  apk:
+    name: APK (${{ matrix.abi }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a]
+    env:
+      CHAOTIX_ROM_URL: ${{ secrets.CHAOTIX_ROM_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out SDL3
+        uses: actions/checkout@v4
+        with:
+          repository: libsdl-org/SDL
+          ref: release-3.2.24
+          path: _sdl3
+
+      - name: Check out SDL_ttf
+        uses: actions/checkout@v4
+        with:
+          repository: libsdl-org/SDL_ttf
+          ref: release-3.2.2
+          path: _sdl3_ttf
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install NDK and CMake
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" "ndk;29.0.13599879" "cmake;3.22.1" "platforms;android-34" "build-tools;34.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.7
+          validate-wrappers: false
+
+      - name: Find the ROM
+        run: |
+          set -e
+          mkdir -p _rom
+          if [ -n "$CHAOTIX_ROM_URL" ]; then
+            curl -fsSL "$CHAOTIX_ROM_URL" -o _rom/download
+            if unzip -tq _rom/download > /dev/null 2>&1; then unzip -o -q _rom/download -d _rom/x; else mkdir -p _rom/x; mv _rom/download _rom/x/rom.32x; fi
+          else
+            mkdir -p _rom/x
+            for z in ./*.zip rom/*.zip; do [ -f "$z" ] && unzip -o -q "$z" -d _rom/x || true; done
+            for f in ./*.32x ./*.32X rom/*.32x rom/*.32X; do [ -f "$f" ] && cp "$f" _rom/x/ || true; done
+          fi
+          ROM="$(find _rom/x -type f \( -iname '*.32x' -o -iname '*.bin' \) | head -n1)"
+          if [ -z "$ROM" ]; then
+            echo "::error::No ROM found. Commit a .32x (or a zip with it) to your private fork, or set the CHAOTIX_ROM_URL secret."
+            exit 1
+          fi
+          echo "CHAOTIX_ROM=$PWD/$ROM" >> "$GITHUB_ENV"
+          echo "ROM: $ROM ($(stat -c %s "$ROM") bytes)"
+
+      - name: Recompile the game to C++ (host)
+        run: |
+          cmake -S . -B hostbuild -DCMAKE_BUILD_TYPE=Release \
+            -DCHAOTIX_BUILD_FRONTEND=OFF -DCHAOTIX_BUILD_TOOLS=ON -DCHAOTIX_BUILD_TESTS=OFF
+          cmake --build hostbuild --target chaotix_recomp -j4
+          COV=""; for f in coverage/*.cov; do COV="$COV --coverage $f"; done
+          ./hostbuild/chaotix_recomp --rom "$CHAOTIX_ROM" $COV --out "$PWD/generated"
+          ls generated | head -30
+
+      - name: Build debug APK
+        working-directory: platforms/android
+        run: >
+          gradle --no-daemon assembleDebug
+          -PSDL3_SOURCE_DIR="$GITHUB_WORKSPACE/_sdl3"
+          -PSDL3_TTF_SOURCE_DIR="$GITHUB_WORKSPACE/_sdl3_ttf"
+          -PABIS=${{ matrix.abi }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chaotix-recompiled-${{ matrix.abi }}-debug-apk
+          path: platforms/android/app/build/outputs/apk/debug/*.apk
