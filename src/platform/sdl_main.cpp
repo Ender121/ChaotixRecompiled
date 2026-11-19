@@ -2745,6 +2745,11 @@ int main(int argc, char** argv) {
 
     // An explicit ROM (including an Explorer drop onto the EXE) is installed
     // once, so subsequent launches use that copy even if the source moves.
+#if defined(SDL_PLATFORM_ANDROID)
+    // The ROM lives in the app's folder on shared storage:
+    // /storage/emulated/0/Android/data/org.chaotixrecompiled/files/Game/chaotix.32x
+    if (const char* ext = SDL_GetAndroidExternalStoragePath()) setup::set_rom_dir_override(std::string(ext) + "/Game/");
+#endif
     const std::string installed = setup::installed_rom_path(app.store.root());
     std::string rom_path = rom_from_args(argc, argv);
     std::error_code rom_ec;
