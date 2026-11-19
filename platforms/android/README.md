@@ -31,7 +31,7 @@ the setup screen until the user supplies their own ROM. Read
 | JDK | 17 (Temurin) |
 | Gradle | 8.7 |
 | Android Gradle Plugin | 8.5.0 |
-| SDK platform | 34 (`compileSdk`/`targetSdk`), `minSdk` 26 |
+| SDK platform | 34 (`compileSdk`/`targetSdk`), `minSdk` 21 |
 | NDK | 29.0.13599879 (override with `-PNDK_VERSION=...`) |
 | CMake | 3.22.1+, from the SDK |
 | SDL3 source | ≥ 3.2, the same checkout the desktop build uses |

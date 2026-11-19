@@ -31,6 +31,8 @@ public class ChaotixActivity extends SDLActivity {
     /** Whether this app may read and write ordinary folders on shared storage. */
     public static boolean hasSharedStorage() {
         if (Build.VERSION.SDK_INT >= 30) return Environment.isExternalStorageManager();
+        // Before Android 6 permissions are granted at install time.
+        if (Build.VERSION.SDK_INT < 23) return true;
         Context c = SDLActivity.getContext();
         return c != null && c.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 == PackageManager.PERMISSION_GRANTED;
@@ -45,6 +47,7 @@ public class ChaotixActivity extends SDLActivity {
     public static void requestSharedStorage() {
         final Context c = SDLActivity.getContext();
         if (!(c instanceof Activity)) return;
+        if (Build.VERSION.SDK_INT < 23) return;  // nothing to ask for before Android 6
         final Activity a = (Activity) c;
         a.runOnUiThread(() -> {
             if (Build.VERSION.SDK_INT >= 30) {
