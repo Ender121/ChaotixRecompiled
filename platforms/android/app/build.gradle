@@ -18,7 +18,7 @@ android {
 
     defaultConfig {
         applicationId 'org.chaotixrecompiled'
-        minSdk 26
+        minSdk 21
         targetSdk 34
         versionCode 61
         versionName '0.15.22'
