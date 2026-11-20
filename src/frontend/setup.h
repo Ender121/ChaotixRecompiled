@@ -25,8 +25,14 @@ struct Candidate {
     bool loadable = false;  // parses as a 32X ROM at all
 };
 
-// The installed copy inside the user data directory.
+// The installed copy inside the user data directory, or inside the folder given
+// to set_rom_dir_override() (Android: the app's folder on shared storage, so the
+// ROM can be placed there with a file manager).
 std::string installed_rom_path(const std::string& store_root);
+
+// `dir` ends with a slash. An installed copy in the old location is still used
+// while there is none in `dir`.
+void set_rom_dir_override(const std::string& dir);
 
 // Reads one file and reports what it is. Never throws; a file that cannot be
 // read comes back with loadable = false and an explanatory label.
