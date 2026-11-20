@@ -22,8 +22,19 @@ std::string file_name(const std::string& path) { return fs::path(path).filename(
 
 } // namespace
 
+namespace {
+std::string g_rom_dir_override;
+}
+
+void set_rom_dir_override(const std::string& dir) { g_rom_dir_override = dir; }
+
 std::string installed_rom_path(const std::string& store_root) {
-    return store_root + "Game/chaotix.32x";
+    const std::string legacy = store_root + "Game/chaotix.32x";
+    if (g_rom_dir_override.empty()) return legacy;
+    const std::string preferred = g_rom_dir_override + "chaotix.32x";
+    std::error_code ec;
+    if (!fs::exists(fs::path(preferred), ec) && fs::exists(fs::path(legacy), ec)) return legacy;
+    return preferred;
 }
 
 Candidate check_file(const std::string& path) {
